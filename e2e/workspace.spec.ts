@@ -67,7 +67,7 @@ test("source upload shows progress and completion", async ({ page }) => {
   await page.getByRole("button", { name: "Upload document" }).click();
   await expect(page.getByRole("status")).toHaveText(/Uploading: \d+%/);
   await expect(
-    page.getByText(/Upload complete\. Your document is being prepared\./),
+    page.getByText(/Your document passed validation and is being prepared\./),
   ).toBeVisible();
 });
 

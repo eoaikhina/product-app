@@ -24,6 +24,25 @@ const outlineState = new Map();
 const narrationState = new Map();
 const storyboardState = new Map();
 
+function resetTestState() {
+  projects.clear();
+  projects.set(existingId, {
+    id: existingId,
+    title: "Existing water-cycle lesson",
+    stage: "draft",
+    latestFailedOperation: null,
+    createdAt: now,
+    updatedAt: now,
+    revision: 1,
+  });
+  uploads.clear();
+  configurations.clear();
+  objectiveState.clear();
+  outlineState.clear();
+  narrationState.clear();
+  storyboardState.clear();
+}
+
 const outlineObjectiveId = "019ffbf1-6111-738a-b087-6775ff97568c";
 const outlineItemA = "019ffbf1-6121-738a-b087-6775ff97568c";
 const outlineItemB = "019ffbf1-6122-738a-b087-6775ff97568c";
@@ -557,6 +576,10 @@ const server = createServer(async (request, response) => {
   response.setHeader("access-control-allow-credentials", "true");
   if (request.method === "GET" && url.pathname === "/health")
     return send(response, 200, { status: "ok" });
+  if (request.method === "POST" && url.pathname === "/__test/reset") {
+    resetTestState();
+    return send(response, 204, {});
+  }
   if (
     request.method === "POST" &&
     url.pathname === "/auth/password-reset/request"
@@ -628,7 +651,7 @@ const server = createServer(async (request, response) => {
       uploadUrl: `http://127.0.0.1:3002/signed-upload/${sessionId}`,
       method: "PUT",
       requiredHeaders: { "content-type": input.mediaType },
-      expiresAt: "2026-08-13T12:05:00.000Z",
+      expiresAt: "2099-08-13T12:05:00.000Z",
     });
   }
   const completionMatch = url.pathname.match(
@@ -641,8 +664,27 @@ const server = createServer(async (request, response) => {
           documentId: "019ffbf1-6111-738a-b087-6775ff97568c",
           status: "active",
           ingestionRequested: true,
+          duplicateDetected: false,
         })
       : send(response, 400, { error: { code: "validation_failed" } });
+  }
+  const sourceDocumentMatch = url.pathname.match(
+    /^\/projects\/([^/]+)\/source-document$/,
+  );
+  if (request.method === "GET" && sourceDocumentMatch !== null) {
+    const project = projects.get(sourceDocumentMatch[1]);
+    if (project === undefined)
+      return send(response, 404, { error: { code: "not_found" } });
+    return send(response, 200, {
+      documentId: "019ffbf1-6111-738a-b087-6775ff97568c",
+      validation: {
+        status: "active",
+        code: null,
+        pageCount: 5,
+        warnings: [],
+      },
+      reuse: { status: "not_reused" },
+    });
   }
   const signedUploadMatch = url.pathname.match(/^\/signed-upload\/([^/]+)$/);
   if (request.method === "PUT" && signedUploadMatch !== null) {
@@ -729,6 +771,55 @@ const server = createServer(async (request, response) => {
       },
     });
   }
+  const sourceSectionsMatch = url.pathname.match(
+    /^\/projects\/([^/]+)\/source-sections$/,
+  );
+  if (request.method === "GET" && sourceSectionsMatch !== null) {
+    const project = projects.get(sourceSectionsMatch[1]);
+    if (project === undefined)
+      return send(response, 404, { error: { code: "not_found" } });
+    return send(response, 200, {
+      documentId: "019ffbf1-610e-738a-b087-6775ff97568c",
+      sections: [
+        {
+          id: "019ffbf1-6112-738a-b087-6775ff97568c",
+          order: 1,
+          level: 1,
+          heading: "Introduction",
+          displayHeading: null,
+          included: true,
+          reviewOrder: null,
+          pageStart: 1,
+          pageEnd: 2,
+          revision: 0,
+        },
+        {
+          id: "019ffbf1-6115-738a-b087-6775ff97568c",
+          order: 2,
+          level: 1,
+          heading: "Evaporation",
+          displayHeading: null,
+          included: true,
+          reviewOrder: null,
+          pageStart: 3,
+          pageEnd: 4,
+          revision: 0,
+        },
+        {
+          id: "019ffbf1-6116-738a-b087-6775ff97568c",
+          order: 3,
+          level: 1,
+          heading: "References",
+          displayHeading: null,
+          included: true,
+          reviewOrder: null,
+          pageStart: 5,
+          pageEnd: 5,
+          revision: 0,
+        },
+      ],
+    });
+  }
   const sectionMatch = url.pathname.match(
     /^\/projects\/([^/]+)\/parsed-document\/sections\/([^/]+)$/,
   );
@@ -767,6 +858,8 @@ const server = createServer(async (request, response) => {
               height: 600,
               previewUrl:
                 "http://127.0.0.1:3002/signed-figure/019ffbf1-6114.png",
+              included: true,
+              revision: 0,
             },
           ],
           tables: [],
@@ -1077,6 +1170,7 @@ const server = createServer(async (request, response) => {
         return send(response, 404, { error: { code: "not_found" } });
       return send(response, 200, {
         scene,
+        sceneRevision: draft.revision,
         status: storyboardSceneStatus(scene),
       });
     }

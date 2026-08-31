@@ -43,7 +43,11 @@ async function execute(
 const hash = (value: unknown) =>
   // This mirrors the versioned content hash used at the worker boundary.
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
-const voiceHash = hash({ voiceId: "voice-1", speakingRate: "1", overrides: [] });
+const voiceHash = hash({
+  voiceId: "voice-1",
+  speakingRate: "1",
+  overrides: [],
+});
 
 function databaseFor(
   rows: unknown[][],
@@ -58,8 +62,10 @@ function databaseFor(
       limit: () => query,
       orderBy: () => query,
       then: <TResult1 = unknown, TResult2 = never>(
-        onfulfilled?: ((value: unknown[]) => TResult1 | PromiseLike<TResult1>) | null,
-        onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+        onfulfilled?:
+          ((value: unknown[]) => TResult1 | PromiseLike<TResult1>) | null,
+        onrejected?:
+          ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
       ) => Promise.resolve(result).then(onfulfilled, onrejected),
     };
     return query;
@@ -74,20 +80,26 @@ function databaseFor(
           return {
             returning: async () => result,
             then: <TResult1 = unknown, TResult2 = never>(
-              onfulfilled?: ((item: typeof result) => TResult1 | PromiseLike<TResult1>) | null,
-              onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+              onfulfilled?:
+                | ((item: typeof result) => TResult1 | PromiseLike<TResult1>)
+                | null,
+              onrejected?:
+                ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
             ) => Promise.resolve(result).then(onfulfilled, onrejected),
           };
         },
       }),
     }),
     insert: () => ({
-      values: (value: Record<string, unknown> | Array<Record<string, unknown>>) => {
+      values: (
+        value: Record<string, unknown> | Array<Record<string, unknown>>,
+      ) => {
         inserts.push(...(Array.isArray(value) ? value : [value]));
         return { onConflictDoNothing: async () => undefined };
       },
     }),
-    transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback(database),
+    transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+      callback(database),
   };
   return database as unknown as DatabaseClient;
 }
@@ -154,17 +166,39 @@ describe("scene audio generation job", () => {
     plannedDurationMs: 500,
   };
   const voice = { id: sceneId, voiceId: "voice-1", speakingRate: "1" };
-  const scene = { id: sceneId, sceneJson: { narration: "Water enters through roots." } };
+  const scene = {
+    id: sceneId,
+    sceneJson: { narration: "Water enters through roots." },
+  };
 
   it("persists a ready per-scene audio artifact and records metered usage", async () => {
     const updates: Array<Record<string, unknown>> = [];
     const inserts: Array<Record<string, unknown>> = [];
-    const putBytes = vi.fn();
-    const synthesize = vi.fn(({ narration, speakingRate }: { narration: string; speakingRate: number }) =>
-      synthesizeFixtureAudio(narration, speakingRate),
+    const putBytes = vi.fn().mockResolvedValue({
+      checksumSha256: "a".repeat(64),
+    });
+    const synthesize = vi.fn(
+      ({
+        narration,
+        speakingRate,
+      }: {
+        narration: string;
+        speakingRate: number;
+      }) => synthesizeFixtureAudio(narration, speakingRate),
     );
     const handler = createSceneAudioGenerationJobHandler({
-      database: databaseFor([[queuedAudio], [scene], [voice], [], [{ status: "ready" }], [{ id: sceneId }]], updates, inserts),
+      database: databaseFor(
+        [
+          [queuedAudio],
+          [scene],
+          [voice],
+          [],
+          [{ status: "ready" }],
+          [{ id: sceneId }],
+        ],
+        updates,
+        inserts,
+      ),
       storage: { putBytes },
       provider: {
         providerId: "fixture-v1",
@@ -176,50 +210,115 @@ describe("scene audio generation job", () => {
     });
 
     await expect(execute(handler)).resolves.toMatchObject({ status: "ready" });
-    expect(synthesize).toHaveBeenCalledWith({ narration: "Water enters through roots.", speakingRate: "1" });
-    expect(putBytes).toHaveBeenCalledWith(expect.objectContaining({ contentType: "audio/wav" }));
-    expect(updates).toContainEqual(expect.objectContaining({ status: "generating" }));
-    expect(updates).toContainEqual(expect.objectContaining({ status: "ready", contentType: "audio/wav" }));
-    expect(inserts).toContainEqual(expect.objectContaining({ operationType: "tts.generation", status: "succeeded" }));
-    expect(inserts).toContainEqual(expect.objectContaining({
-      sceneAudioId: audioId,
-      status: "ready",
-      language: "en",
-    }));
-    expect(inserts).toContainEqual(expect.objectContaining({
-      trackId: sceneId,
-      startMs: 0,
-      text: "Water enters through roots.",
-    }));
+    expect(synthesize).toHaveBeenCalledWith({
+      narration: "Water enters through roots.",
+      speakingRate: "1",
+    });
+    expect(putBytes).toHaveBeenCalledWith(
+      expect.objectContaining({ contentType: "audio/wav" }),
+    );
+    expect(updates).toContainEqual(
+      expect.objectContaining({ status: "generating" }),
+    );
+    expect(updates).toContainEqual(
+      expect.objectContaining({ status: "ready", contentType: "audio/wav" }),
+    );
+    expect(inserts).toContainEqual(
+      expect.objectContaining({
+        operationType: "tts.generation",
+        status: "succeeded",
+      }),
+    );
+    expect(inserts).toContainEqual(
+      expect.objectContaining({
+        sceneAudioId: audioId,
+        status: "ready",
+        language: "en",
+      }),
+    );
+    expect(inserts).toContainEqual(
+      expect.objectContaining({
+        trackId: sceneId,
+        startMs: 0,
+        text: "Water enters through roots.",
+      }),
+    );
   });
 
   it("uses the forced-alignment boundary when a provider omits timestamps", async () => {
     const updates: Array<Record<string, unknown>> = [];
     const inserts: Array<Record<string, unknown>> = [];
-    const align = vi.fn(() => [{ startMs: 0, endMs: 1_000, text: "Water enters through roots." }]);
+    const align = vi.fn(() => [
+      { startMs: 0, endMs: 1_000, text: "Water enters through roots." },
+    ]);
     const handler = createSceneAudioGenerationJobHandler({
-      database: databaseFor([[queuedAudio], [scene], [voice], [], [{ status: "ready" }], [{ id: sceneId }]], updates, inserts),
-      storage: { putBytes: vi.fn() },
-      provider: { providerId: "fixture-v1", outputFormat: "wav", contentType: "audio/wav", synthesize: () => ({ ...synthesizeFixtureAudio("Water enters through roots.", 1), timing: [] }) },
+      database: databaseFor(
+        [
+          [queuedAudio],
+          [scene],
+          [voice],
+          [],
+          [{ status: "ready" }],
+          [{ id: sceneId }],
+        ],
+        updates,
+        inserts,
+      ),
+      storage: {
+        putBytes: vi.fn().mockResolvedValue({
+          checksumSha256: "a".repeat(64),
+        }),
+      },
+      provider: {
+        providerId: "fixture-v1",
+        outputFormat: "wav",
+        contentType: "audio/wav",
+        synthesize: () => ({
+          ...synthesizeFixtureAudio("Water enters through roots.", 1),
+          timing: [],
+        }),
+      },
       alignmentProvider: { align },
       now,
     });
     await expect(execute(handler)).resolves.toMatchObject({ status: "ready" });
-    expect(align).toHaveBeenCalledWith(expect.objectContaining({ narration: "Water enters through roots." }));
+    expect(align).toHaveBeenCalledWith(
+      expect.objectContaining({ narration: "Water enters through roots." }),
+    );
   });
 
   it("marks a provider or storage failure retryable and meters the failed attempt", async () => {
     const updates: Array<Record<string, unknown>> = [];
     const inserts: Array<Record<string, unknown>> = [];
     const handler = createSceneAudioGenerationJobHandler({
-      database: databaseFor([[queuedAudio], [scene], [voice], []], updates, inserts),
-      storage: { putBytes: vi.fn().mockRejectedValue(new Error("storage unavailable")) },
+      database: databaseFor(
+        [[queuedAudio], [scene], [voice], []],
+        updates,
+        inserts,
+      ),
+      storage: {
+        putBytes: vi.fn().mockRejectedValue(new Error("storage unavailable")),
+      },
       now,
     });
 
-    await expect(execute(handler)).rejects.toMatchObject({ code: "TTS_GENERATION_FAILED", classification: "retryable" });
-    expect(updates).toContainEqual(expect.objectContaining({ status: "failed", failureCode: "TTS_GENERATION_FAILED" }));
-    expect(inserts).toContainEqual(expect.objectContaining({ operationType: "tts.generation", status: "failed", retryCount: 0 }));
+    await expect(execute(handler)).rejects.toMatchObject({
+      code: "TTS_GENERATION_FAILED",
+      classification: "retryable",
+    });
+    expect(updates).toContainEqual(
+      expect.objectContaining({
+        status: "failed",
+        failureCode: "TTS_GENERATION_FAILED",
+      }),
+    );
+    expect(inserts).toContainEqual(
+      expect.objectContaining({
+        operationType: "tts.generation",
+        status: "failed",
+        retryCount: 0,
+      }),
+    );
   });
 
   it("marks an outdated per-scene request stale without synthesizing or overwriting it", async () => {
@@ -227,14 +326,25 @@ describe("scene audio generation job", () => {
     const inserts: Array<Record<string, unknown>> = [];
     const putBytes = vi.fn();
     const handler = createSceneAudioGenerationJobHandler({
-      database: databaseFor([[queuedAudio], [{ ...scene, sceneJson: { narration: "Changed narration." } }], [voice], []], updates, inserts),
+      database: databaseFor(
+        [
+          [queuedAudio],
+          [{ ...scene, sceneJson: { narration: "Changed narration." } }],
+          [voice],
+          [],
+        ],
+        updates,
+        inserts,
+      ),
       storage: { putBytes },
       now,
     });
 
     await expect(execute(handler)).resolves.toEqual({ status: "stale" });
     expect(putBytes).not.toHaveBeenCalled();
-    expect(updates).toContainEqual(expect.objectContaining({ status: "stale" }));
+    expect(updates).toContainEqual(
+      expect.objectContaining({ status: "stale" }),
+    );
     expect(inserts).toEqual([]);
   });
 });

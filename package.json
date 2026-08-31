@@ -9,7 +9,7 @@
   "scripts": {
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "test": "turbo test",
+    "test": "turbo test --concurrency=1",
     "build": "turbo build",
     "dev": "turbo dev --parallel",
     "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",

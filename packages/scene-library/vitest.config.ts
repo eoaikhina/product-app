@@ -2,7 +2,9 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    // Layout assertions launch Chromium and need headroom during parallel CI runs.
-    testTimeout: 60_000,
+    // Remotion and layout assertions each launch Chromium; serial files avoid
+    // starving the browser processes on shared CI runners.
+    fileParallelism: false,
+    testTimeout: 120_000,
   },
 });

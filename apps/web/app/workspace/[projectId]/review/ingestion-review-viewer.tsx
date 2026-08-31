@@ -242,7 +242,8 @@ export function IngestionReviewViewer({
 
   useEffect(() => {
     if (state.kind !== "ready" || focusSectionId === undefined) return;
-    if (!expandedSections.has(focusSectionId)) void toggleSection(focusSectionId);
+    if (!expandedSections.has(focusSectionId))
+      void toggleSection(focusSectionId);
   }, [state.kind, focusSectionId, expandedSections, toggleSection]);
 
   useEffect(() => {
@@ -257,9 +258,7 @@ export function IngestionReviewViewer({
     focusedRef.current = true;
     const target =
       focusBlockId !== undefined
-        ? window.document.querySelector(
-            `[data-block-id="${focusBlockId}"]`,
-          )
+        ? window.document.querySelector(`[data-block-id="${focusBlockId}"]`)
         : window.document.getElementById(`section-${focusSectionId}`);
     if (target !== null) {
       target.scrollIntoView({ block: "center" });
@@ -501,19 +500,14 @@ export function IngestionReviewViewer({
     (warning: { id: string; sectionId?: string | undefined }) => {
       if (warning.sectionId !== undefined) {
         const sid = warning.sectionId;
-        setExpandedSections((prev) => {
-          const next = new Set(prev);
-          next.add(sid);
-          return next;
-        });
-        if (sectionStatesRef.current[sid]?.detail === undefined) {
+        if (!expandedSections.has(sid)) {
           void toggleSection(sid);
         }
         const element = window.document.getElementById(`section-${sid}`);
         if (element !== null) element.focus();
       }
     },
-    [toggleSection],
+    [expandedSections, toggleSection],
   );
 
   if (state.kind === "loading")

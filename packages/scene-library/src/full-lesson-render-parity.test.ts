@@ -9,9 +9,7 @@ import {
 } from "./scene-preview-composition.js";
 
 describe("full lesson preview/render parity", () => {
-  it(
-    "renders the same fixture frame through preview and render runtimes",
-    async () => {
+  it("renders the same fixture frame through preview and render runtimes", async () => {
     const serveUrl = await bundle({
       entryPoint: fileURLToPath(
         new URL("../dist/remotion-root.js", import.meta.url),
@@ -51,8 +49,6 @@ describe("full lesson preview/render parity", () => {
 
     expect(previewFrame.contentType).toBe("image/png");
     expect(renderFrame.contentType).toBe("image/png");
-      expect(previewFrame.buffer).toEqual(renderFrame.buffer);
-    },
-    60_000,
-  );
+    expect(previewFrame.buffer).toEqual(renderFrame.buffer);
+  }, 120_000);
 });

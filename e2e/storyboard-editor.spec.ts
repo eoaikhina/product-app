@@ -3,6 +3,11 @@ import { expect, test } from "@playwright/test";
 const projectId = "019ffbf1-610e-738a-b087-6775ff97568c";
 const firstSceneId = "019ffbf1-6151-738a-b087-6775ff97568c";
 
+test.beforeEach(async ({ request }) => {
+  const response = await request.post("http://127.0.0.1:3002/__test/reset");
+  expect(response.ok()).toBe(true);
+});
+
 async function setSessionCookie(page: import("@playwright/test").Page) {
   await page.context().addCookies([
     {
@@ -118,7 +123,9 @@ test("edits the selected scene and refreshes preview only after persistence", as
   await setSessionCookie(page);
   await page.goto(`/workspace/${projectId}/storyboard`);
   await expect(page.getByTestId("scene-editor")).toBeVisible();
-  await page.getByLabel("Narration").fill("Water rises as vapour.");
+  await page
+    .getByRole("textbox", { name: "Narration", exact: true })
+    .fill("Water rises as vapour.");
   const saveRequest = page.waitForRequest(
     (request) =>
       request.method() === "PATCH" &&

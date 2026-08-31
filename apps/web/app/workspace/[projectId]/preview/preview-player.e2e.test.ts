@@ -95,77 +95,73 @@ async function waitForPage(url: string): Promise<void> {
 }
 
 describe("full lesson preview route", () => {
-  it(
-    "hydrates seek and scene navigation against the real preview route",
-    async () => {
-      const apiServer = createServer((_request, response) => {
-        response.setHeader("content-type", "application/json");
-        response.end(JSON.stringify(manifest));
-      });
-      await new Promise<void>((resolve) =>
-        apiServer.listen(0, "127.0.0.1", resolve),
-      );
-      const apiAddress = apiServer.address();
-      if (apiAddress === null || typeof apiAddress === "string")
-        throw new Error("Could not start the manifest test server.");
-      const webPort = await unusedPort();
-      const next: ChildProcess = spawn(
-        process.execPath,
-        [
-          join(process.cwd(), "node_modules", "next", "dist", "bin", "next"),
-          "dev",
-          "--port",
-          String(webPort),
-        ],
-        {
-          cwd: process.cwd(),
-          env: {
-            ...process.env,
-            NEXT_PUBLIC_API_URL: `http://127.0.0.1:${apiAddress.port}`,
-          },
-          stdio: "ignore",
+  it("hydrates seek and scene navigation against the real preview route", async () => {
+    const apiServer = createServer((_request, response) => {
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify(manifest));
+    });
+    await new Promise<void>((resolve) =>
+      apiServer.listen(0, "127.0.0.1", resolve),
+    );
+    const apiAddress = apiServer.address();
+    if (apiAddress === null || typeof apiAddress === "string")
+      throw new Error("Could not start the manifest test server.");
+    const webPort = await unusedPort();
+    const next: ChildProcess = spawn(
+      process.execPath,
+      [
+        join(process.cwd(), "node_modules", "next", "dist", "bin", "next"),
+        "dev",
+        "--port",
+        String(webPort),
+      ],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          NEXT_PUBLIC_API_URL: `http://127.0.0.1:${apiAddress.port}`,
         },
-      );
+        stdio: "ignore",
+      },
+    );
+    try {
+      const origin = `http://127.0.0.1:${webPort}`;
+      await waitForPage(origin);
+      const browser = await chromium.launch({ headless: true });
       try {
-        const origin = `http://127.0.0.1:${webPort}`;
-        await waitForPage(origin);
-        const browser = await chromium.launch({ headless: true });
-        try {
-          const page = await browser.newPage();
-          await page.context().addCookies([
-            {
-              name: "avlp_session",
-              value: "test-session",
-              domain: "127.0.0.1",
-              path: "/",
-            },
-          ]);
-          await page.goto(`${origin}/workspace/${projectId}/preview`, {
-            timeout: 60_000,
-            waitUntil: "load",
-          });
-          await playwrightExpect(
-            page.getByRole("button", { name: "Scene 2" }),
-          ).toBeVisible();
-          await page.getByRole("button", { name: "Scene 2" }).click();
-          await playwrightExpect(page.getByLabel("Seek lesson")).toHaveValue(
-            "300",
-          );
-          await playwrightExpect(page.getByRole("status")).toContainText(
-            secondScene.id,
-          );
-        } finally {
-          await browser.close();
-        }
-      } finally {
-        next.kill();
-        await new Promise<void>((resolve, reject) =>
-          apiServer.close((error) =>
-            error === undefined ? resolve() : reject(error),
-          ),
+        const page = await browser.newPage();
+        await page.context().addCookies([
+          {
+            name: "avlp_session",
+            value: "test-session",
+            domain: "127.0.0.1",
+            path: "/",
+          },
+        ]);
+        await page.goto(`${origin}/workspace/${projectId}/preview`, {
+          timeout: 60_000,
+          waitUntil: "load",
+        });
+        await playwrightExpect(
+          page.getByRole("button", { name: "Scene 2" }),
+        ).toBeVisible();
+        await page.getByRole("button", { name: "Scene 2" }).click();
+        await playwrightExpect(page.getByLabel("Seek lesson")).toHaveValue(
+          "300",
         );
+        await playwrightExpect(page.getByRole("status")).toContainText(
+          secondScene.id,
+        );
+      } finally {
+        await browser.close();
       }
-    },
-    90_000,
-  );
+    } finally {
+      next.kill();
+      await new Promise<void>((resolve, reject) =>
+        apiServer.close((error) =>
+          error === undefined ? resolve() : reject(error),
+        ),
+      );
+    }
+  }, 90_000);
 });

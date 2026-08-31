@@ -2,6 +2,11 @@ import { expect, test } from "@playwright/test";
 
 const projectId = "019ffbf1-610e-738a-b087-6775ff97568c";
 
+test.beforeEach(async ({ request }) => {
+  const response = await request.post("http://127.0.0.1:3002/__test/reset");
+  expect(response.ok()).toBe(true);
+});
+
 async function setSessionCookie(page: import("@playwright/test").Page) {
   await page.context().addCookies([
     {

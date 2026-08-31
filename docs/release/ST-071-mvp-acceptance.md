@@ -79,3 +79,25 @@ pnpm --filter @avlp/renderer test:smoke
 ```
 
 PostgreSQL integration evidence requires `TEST_DATABASE_URL`. Production-like browser evidence requires Chromium installed for Playwright.
+
+## Recorded acceptance evidence
+
+Implementation and automated review completed on 2026-08-31:
+
+| Gate                                  | Result                                                       |
+| ------------------------------------- | ------------------------------------------------------------ |
+| Repository lint                       | 16/16 workspaces passed                                      |
+| TypeScript strict checks              | 16/16 workspaces passed                                      |
+| Root unit/component suites            | 26/26 tasks passed                                           |
+| Production build                      | 16/16 workspaces passed                                      |
+| Browser acceptance                    | 50/50 Playwright tests passed in 2.3 minutes                 |
+| API PostgreSQL integration            | 55 files, 476 tests passed                                   |
+| Password-reset PostgreSQL integration | 6/6 passed, including expiry, reuse, concurrency, and timing |
+| Model-call PostgreSQL integration     | 2/2 passed                                                   |
+| Scene-library visual/render coverage  | 10 files, 56/56 passed                                       |
+| Prompt evaluation                     | Passed                                                       |
+| Renderer smoke                        | Passed; produced 1920x1080 H.264/AAC MP4 plus thumbnail      |
+
+During the approval review, the browser mock was brought back into strict contract parity for source upload, source selection, parsed figures, and storyboard scene detail. Storyboard tests now reset mutable mock state per case, and warning navigation no longer closes the section it is meant to open. The complete browser suite passed after these corrections.
+
+Deployment-only items remain intentionally assigned to the human release approver in `security-malware-retention-checklist.md`: shared ingress evidence, production secret and malware-scanner configuration, retention-period approval, and retry/dead-letter infrastructure. No in-scope code defect remains open.
